@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>壁打ち 3D</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { height:100%; overflow:hidden; background:#060a12; }
+body {
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",YuGothic,Meiryo,sans-serif;
+  color:#c7d2e0; user-select:none;
+}
+#c { position:fixed; inset:0; display:block; }
+.mono { font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,"Courier New",monospace; }
+
+/* HUD */
+#hudbar {
+  position:fixed; top:0; left:0; right:0; z-index:10;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:9px 14px; font-size:11px; letter-spacing:.14em;
+  font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+  color:#6b7a90; background:linear-gradient(#060a12dd,#060a1200);
+  pointer-events:none;
+}
+#hudbar .obs { color:#e05d5d; display:flex; align-items:center; gap:6px; }
+#hudbar .obs::before { content:""; width:7px; height:7px; border-radius:50%; background:#e05d5d; animation:pulse 2.2s infinite; }
+@keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+#objective {
+  position:fixed; top:38px; left:50%; transform:translateX(-50%); z-index:10;
+  font-size:12px; letter-spacing:.1em; color:#5fd4e8;
+  font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+  background:#0c1322cc; border:1px solid #16203a; border-left:2px solid #5fd4e8;
+  padding:7px 14px; pointer-events:none; white-space:nowrap;
+  opacity:0; transition:opacity .5s, transform .5s;
+}
+#objective.show { opacity:1; }
+
+#toast {
+  position:fixed; top:86px; left:50%; transform:translateX(-50%) translateY(-8px); z-index:10;
+  font-size:12px; color:#e0b060; letter-spacing:.08em;
+  font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+  background:#0c1322cc; border:1px solid #3a3016;
+  padding:7px 14px; pointer-events:none; opacity:0; transition:opacity .4s, transform .4s;
+}
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+#prompt {
+  position:fixed; bottom:26%; left:50%; transform:translateX(-50%); z-index:10;
+  font-size:13px; color:#c7d2e0; letter-spacing:.08em;
+  background:#0c1322dd; border:1px solid #5fd4e8;
+  padding:8px 18px; pointer-events:none; opacity:0; transition:opacity .2s;
+  animation:bob 1.6s ease-in-out infinite;
+}
+@keyframes bob { 0%,100%{margin-bottom:0} 50%{margin-bottom:5px} }
+#prompt.show { opacity:1; }
+
+#reticle {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:9;
+  width:5px; height:5px; border-radius:50%; background:#c7d2e066; pointer-events:none;
+}
+
+/* 会話ボックス */
+#dlg {
+  position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:20;
+  width:min(680px, calc(100% - 24px));
+  background:#0a1120ee; border:1px solid #24314f;
+  padding:16px 18px 14px; display:none; cursor:pointer;
+}
+#dlg.show { display:block; animation:dlgin .25s ease-out; }
+@keyframes dlgin { from{opacity:0; transform:translateX(-50%) translateY(10px)} to{opacity:1; transform:translateX(-50%) translateY(0)} }
+#dlgname {
+  position:absolute; top:-13px; left:12px;
+  font-size:11px; letter-spacing:.18em; color:#060a12;
+  background:#5fd4e8; padding:3px 12px; font-weight:bold;
+}
+#dlgname.kuro { background:#c9c2b6; }
+#dlgtext { font-size:14.5px; line-height:1.9; min-height:3.8em; }
+#dlgcue { text-align:right; font-size:11px; color:#6b7a90; animation:pulse 1.4s infinite; height:1em; }
+#dlgchoices { display:none; flex-direction:column; gap:8px; margin-top:10px; }
+#dlgchoices button {
+  font-family:inherit; font-size:13.5px; text-align:left; color:#c7d2e0;
+  background:#0c1322; border:1px solid #24314f; padding:10px 12px; cursor:pointer;
+}
+#dlgchoices button:hover { border-color:#5fd4e8; }
+
+/* オーバーレイ */
+.ov {
+  position:fixed; inset:0; z-index:30; background:#000;
+  display:flex; flex-direction:column; justify-content:center; align-items:center; gap:18px;
+  text-align:center; padding:24px; transition:opacity .6s;
+}
+.ov.hide { opacity:0; pointer-events:none; }
+#start h1 { font-size:34px; letter-spacing:.4em; text-indent:.4em; font-weight:normal; }
+#start .sub { font-size:12px; color:#6b7a90; letter-spacing:.25em; }
+#start .ctl { font-size:12px; color:#6b7a90; line-height:2.1; }
+.bigbtn {
+  font-family:inherit; font-size:14px; letter-spacing:.15em; color:#c7d2e0;
+  background:#0c1322; border:1px solid #5fd4e8; padding:13px 42px; cursor:pointer; margin-top:8px;
+}
+.bigbtn:hover { background:#16203a; }
+#fade { pointer-events:none; opacity:0; z-index:25; justify-content:center; font-size:13px; letter-spacing:.2em; color:#6e6a62; }
+#fade.on { opacity:1; pointer-events:all; }
+#ending { display:none; }
+#ending.show { display:flex; }
+#ending .rep { font-size:13px; line-height:2.2; color:#5fd4e8; text-align:left; }
+#ending .say { font-size:14px; color:#c7d2e0; line-height:2; }
+
+/* モバイル操作 */
+#stick {
+  position:fixed; left:22px; bottom:26px; z-index:15; width:110px; height:110px;
+  border:1px solid #24314f; border-radius:50%; background:#0c132255; display:none;
+}
+#nub { position:absolute; left:50%; top:50%; width:44px; height:44px; margin:-22px 0 0 -22px; border-radius:50%; background:#5fd4e833; border:1px solid #5fd4e8; }
+#btnact {
+  position:fixed; right:26px; bottom:44px; z-index:15; width:72px; height:72px; border-radius:50%;
+  border:1px solid #5fd4e8; background:#0c1322aa; color:#5fd4e8; font-size:12px; letter-spacing:.1em;
+  display:none; align-items:center; justify-content:center; font-family:inherit;
+}
+body.touch #stick { display:block; }
+body.touch #btnact { display:flex; }
+body.touch #reticle { display:none; }
+@media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hudbar"><span>社会発達支援機構 ─ 現場検証端末</span><span class="obs">観測中</span></div>
+<div id="objective" class="mono"></div>
+<div id="toast"></div>
+<div id="reticle"></div>
+<div id="prompt"></div>
+<div id="dlg"><div id="dlgname"></div><div id="dlgtext"></div><div id="dlgcue">▼</div><div id="dlgchoices"></div></div>
+<div id="stick"><div id="nub"></div></div>
+<button id="btnact">調べる</button>
+
+<div class="ov" id="start">
+  <div class="sub">――観測社会の密室――</div>
+  <h1>壁打ち</h1>
+  <div class="sub">3D調査パート 体験版</div>
+  <div class="ctl" id="ctlpc">移動: WASD ／ 視点: マウスドラッグ<br>調べる: E または クリック<br>会話送り: クリック</div>
+  <div class="ctl" id="ctlmb" style="display:none">移動: 左スティック ／ 視点: 画面右をドラッグ<br>調べる: 右下のボタン</div>
+  <button class="bigbtn" id="btnstart">臨場する</button>
+</div>
+
+<div class="ov" id="fade"><span id="fadetext"></span></div>
+
+<div class="ov" id="ending">
+  <div class="sub mono">【例外事案調査報告 ―― 対象: あなた】</div>
+  <div class="rep mono" id="repbody"></div>
+  <div class="say" id="repsay"></div>
+  <button class="bigbtn" onclick="location.reload()">もう一度、臨場する</button>
+</div>
+
+<script src="bundle.js"></script>
+</body>
+</html>
