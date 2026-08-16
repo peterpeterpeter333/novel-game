@@ -1,0 +1,1319 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>没入書庫</title>
+<style>
+/* 没入書庫 共通テーマ
+   単一テーマ（暗）で全色を明示的に塗る。ホスト側の配色に依存しない。 */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --ink0: #060a12;      /* 機構: 地 */
+  --ink1: #0c1322;      /* 機構: パネル */
+  --ink2: #16203a;      /* 機構: 境界 */
+  --tx:   #c7d2e0;      /* 機構: 本文 */
+  --tx-dim: #6b7a90;    /* 機構: 弱 */
+  --cyan: #5fd4e8;      /* 機構: データ */
+  --amber:#e0b060;      /* 機構: 警告・貢献度 */
+  --red:  #e05d5d;      /* 観測ドット */
+  --kabe-bg: #000000;   /* 壁打ち: 地 */
+  --kabe-tx: #c9c2b6;   /* 壁打ち: 本文（暖灰） */
+  --kabe-dim:#6e6a62;
+  --mono: "SFMono-Regular", ui-monospace, "Cascadia Mono", Menlo, Consolas, "Courier New", monospace;
+  --sans: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", YuGothic, Meiryo, sans-serif;
+}
+
+html, body { height: 100%; }
+
+body {
+  background: var(--ink0);
+  color: var(--tx);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.9;
+  transition: background .6s ease, color .6s ease;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- HUD ---------- */
+
+#hud {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  color: var(--tx-dim);
+  border-bottom: 1px solid var(--ink2);
+  user-select: none;
+  transition: opacity .6s ease;
+}
+#hud .obs { color: var(--red); display: flex; align-items: center; gap: 6px; }
+#hud .obs::before {
+  content: "";
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--red);
+  animation: pulse 2.2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:.35} 50%{opacity:1} }
+
+/* ---------- 流れ（本文） ---------- */
+
+#stage { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+#game { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+#game[hidden] { display: none; }
+
+#flow {
+  flex: 1;
+  overflow-y: auto;
+  padding: 26px 20px 18px;
+  -webkit-overflow-scrolling: touch;
+}
+#flow::-webkit-scrollbar { width: 0; }
+
+.line { margin-bottom: 1.15em; word-break: break-word; }
+.line.nar { color: var(--tx); }
+.line.say { color: var(--tx); }
+.line.sys {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--cyan);
+  background: var(--ink1);
+  border: 1px solid var(--ink2);
+  border-left: 2px solid var(--cyan);
+  padding: 9px 12px;
+  letter-spacing: .04em;
+}
+.line.me {
+  color: var(--amber);
+  text-align: right;
+  font-size: 14px;
+}
+.line.faint { color: var(--tx-dim); font-size: 13.5px; }
+
+.cue {
+  color: var(--tx-dim);
+  font-size: 11px;
+  font-family: var(--mono);
+  animation: pulse 1.6s ease-in-out infinite;
+  margin-top: -.6em;
+  margin-bottom: 1em;
+}
+
+/* ---------- 操作欄 ---------- */
+
+#controls {
+  flex: none;
+  padding: 12px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+button.ch {
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.6;
+  text-align: left;
+  color: var(--tx);
+  background: var(--ink1);
+  border: 1px solid var(--ink2);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease;
+}
+button.ch:hover, button.ch:focus-visible { border-color: var(--cyan); outline: none; }
+button.ch:focus-visible { box-shadow: 0 0 0 1px var(--cyan); }
+
+/* ---------- 情動ログ ---------- */
+
+.diary {
+  background: var(--ink1);
+  border: 1px solid var(--ink2);
+  padding: 14px;
+}
+.diary .dlabel {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  color: var(--cyan);
+  margin-bottom: 10px;
+}
+.diary textarea {
+  width: 100%;
+  min-height: 74px;
+  background: var(--ink0);
+  color: var(--tx);
+  border: 1px solid var(--ink2);
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.8;
+  padding: 10px;
+  resize: none;
+}
+.diary textarea:focus { outline: none; border-color: var(--cyan); }
+.diary .dnote {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--tx-dim);
+  margin-top: 7px;
+}
+
+/* ---------- 調査ウィジェット ---------- */
+
+.logrow {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 13px;
+  text-align: left;
+  color: var(--tx);
+  background: var(--ink1);
+  border: 1px solid var(--ink2);
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.logrow:hover, .logrow:focus-visible { border-color: var(--cyan); outline: none; }
+.logrow .t { color: var(--cyan); flex: none; font-variant-numeric: tabular-nums; }
+.logrow.gray, .logrow.gray .t { color: var(--tx-dim); }
+.logrow.hint { border-color: var(--amber); }
+.logrow.open { border-color: var(--cyan); }
+.logdetail {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--tx-dim);
+  border-left: 1px solid var(--ink2);
+  margin: 2px 0 4px 6px;
+  padding: 2px 0 2px 14px;
+  white-space: pre-line;
+}
+
+.quote {
+  border-left: 2px solid var(--ink2);
+  padding: 4px 0 4px 14px;
+  margin-bottom: 1.1em;
+  color: var(--tx);
+  font-size: 14px;
+}
+.quote .who { color: var(--tx-dim); font-size: 11.5px; font-family: var(--mono); margin-bottom: 2px; }
+
+/* ---------- 表紙・終了カード ---------- */
+
+.card {
+  min-height: 55vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+.card .t1 { font-size: 30px; letter-spacing: .3em; text-indent: .3em; }
+.card .t2 { font-size: 12.5px; color: var(--tx-dim); letter-spacing: .2em; }
+.card .t3 { font-family: var(--mono); font-size: 11px; color: var(--tx-dim); margin-top: 18px; }
+
+/* ---------- 遷移オーバーレイ ---------- */
+
+#fx {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  color: #6e6a62;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .15em;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .45s ease;
+  z-index: 50;
+}
+#fx.on { opacity: 1; pointer-events: all; }
+
+/* ---------- 書庫 ---------- */
+
+#library { flex: 1; min-height: 0; padding: 30px 20px; overflow-y: auto; }
+#library h1 {
+  font-size: 13px;
+  font-family: var(--mono);
+  font-weight: normal;
+  letter-spacing: .35em;
+  color: var(--tx-dim);
+  margin-bottom: 26px;
+}
+.book {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  color: var(--tx);
+  background: var(--ink1);
+  border: 1px solid var(--ink2);
+  padding: 20px 18px;
+  margin-bottom: 14px;
+  cursor: pointer;
+  transition: border-color .18s ease;
+}
+.book:hover, .book:focus-visible { border-color: var(--cyan); outline: none; }
+.book .bt { font-size: 19px; letter-spacing: .18em; margin-bottom: 4px; }
+.book .bs { font-size: 11.5px; color: var(--tx-dim); letter-spacing: .1em; margin-bottom: 10px; }
+.book .bd { font-size: 13px; color: var(--tx-dim); line-height: 1.8; }
+.book.locked { opacity: .45; cursor: default; }
+.book.locked:hover { border-color: var(--ink2); }
+.bookbtns { display: flex; gap: 9px; margin-top: 14px; }
+.bookbtns .ch { flex: 1; text-align: center; }
+
+/* ---------- 壁打ちモード ---------- */
+
+body.mode-kabe { background: var(--kabe-bg); color: var(--kabe-tx); }
+body.mode-kabe #hud { opacity: 0; }
+body.mode-kabe #flow { font-family: var(--mono); font-size: 14px; letter-spacing: .05em; }
+body.mode-kabe .line.nar { color: var(--kabe-dim); }
+body.mode-kabe .line.say { color: var(--kabe-tx); }
+body.mode-kabe .line.sys {
+  color: var(--kabe-tx);
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--kabe-dim);
+  padding: 2px 0 2px 13px;
+  font-size: 14px;
+}
+body.mode-kabe .line.me {
+  color: var(--kabe-tx);
+  border-right: 1px solid var(--kabe-dim);
+  padding: 2px 13px 2px 0;
+  font-family: var(--mono);
+}
+body.mode-kabe button.ch {
+  background: transparent;
+  border: 1px solid #2a2824;
+  color: var(--kabe-tx);
+  font-family: var(--mono);
+  font-size: 13.5px;
+}
+body.mode-kabe button.ch:hover, body.mode-kabe button.ch:focus-visible { border-color: var(--kabe-tx); }
+
+/* ---------- 素モード（幕間） ---------- */
+
+body.mode-plain { background: #0a0a0c; color: #b9b4ac; }
+body.mode-plain #hud { opacity: 0; }
+body.mode-plain .line.nar { color: #b9b4ac; }
+
+/* ---------- その他 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+</style>
+</head>
+<body class="mode-kiko">
+<div id="app">
+  <header id="hud">
+    <span>社会発達支援機構 ─ 統合端末</span>
+    <span class="obs">観測中</span>
+  </header>
+  <main id="stage">
+    <div id="library"></div>
+    <div id="game" hidden>
+      <div id="flow"></div>
+      <div id="controls"></div>
+    </div>
+  </main>
+</div>
+<div id="fx"></div>
+<script>
+/* 没入書庫 エンジン（作品非依存）
+   シナリオは NG.register({...}) で登録する。 */
+
+window.NG = (function () {
+  "use strict";
+
+  /* ---------- 保存（localStorage 不可の環境ではメモリに退避） ---------- */
+  var mem = {};
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return mem[k] || null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { mem[k] = v; } },
+    del: function (k) { try { localStorage.removeItem(k); } catch (e) { delete mem[k]; } }
+  };
+
+  var reduced = false;
+  try { reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+
+  /* ---------- 状態 ---------- */
+  var scenarios = {};
+  var cur = null;          // 実行中シナリオ
+  var nodeId = null;
+  var typing = null;       // {skip:bool}
+  var tapResolver = null;
+  var busy = false;
+
+  var T = null;            // テレメトリ
+
+  function resetTelemetry() {
+    T = { start: Date.now(), choices: [], diaries: [], hints: 0 };
+  }
+
+  /* ---------- DOM ---------- */
+  function $(id) { return document.getElementById(id); }
+  var flow, controls, fx, hud;
+
+  function scrollDown() { flow.scrollTop = flow.scrollHeight; }
+
+  function clearFlow() { flow.innerHTML = ""; }
+  function clearControls() { controls.innerHTML = ""; }
+
+  /* ---------- 行の描画 ---------- */
+  function clsFor(t) {
+    if (t.charAt(0) === "【") return "sys";
+    if (t.charAt(0) === "「" || t.charAt(0) === "『") return "say";
+    return "nar";
+  }
+
+  function addLineNow(text, cls) {
+    var d = document.createElement("div");
+    d.className = "line " + (cls || clsFor(text));
+    d.textContent = text;
+    flow.appendChild(d);
+    scrollDown();
+    return d;
+  }
+
+  function typeLine(text, cls) {
+    return new Promise(function (res) {
+      var d = document.createElement("div");
+      d.className = "line " + (cls || clsFor(text));
+      flow.appendChild(d);
+      if (reduced) { d.textContent = text; scrollDown(); res(); return; }
+      var i = 0;
+      typing = { skip: false };
+      var iv = setInterval(function () {
+        if (typing && typing.skip) {
+          d.textContent = text;
+          clearInterval(iv); typing = null; scrollDown(); res(); return;
+        }
+        i += 1;
+        d.textContent = text.slice(0, i);
+        if (i % 6 === 0) scrollDown();
+        if (i >= text.length) { clearInterval(iv); typing = null; scrollDown(); res(); }
+      }, 26);
+    });
+  }
+
+  function waitTap() {
+    return new Promise(function (res) {
+      var cue = document.createElement("div");
+      cue.className = "cue";
+      cue.textContent = "▼";
+      flow.appendChild(cue);
+      scrollDown();
+      tapResolver = function () { cue.remove(); res(); };
+    });
+  }
+
+  function onTap() {
+    if (typing) { typing.skip = true; return; }
+    if (tapResolver) { var r = tapResolver; tapResolver = null; r(); }
+  }
+
+  async function playLines(lines) {
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      var text = (typeof ln === "string") ? ln : ln.t;
+      var cls = (typeof ln === "string") ? null : ln.c;
+      await typeLine(text, cls);
+      if (i < lines.length - 1) await waitTap();
+    }
+  }
+
+  /* ---------- モード遷移 ---------- */
+  var mode = null;
+  function setModeInstant(m) {
+    mode = m;
+    document.body.className = "mode-" + m;
+  }
+  function transition(m, msg) {
+    return new Promise(function (res) {
+      if (mode === m) { res(); return; }
+      if (reduced) { setModeInstant(m); res(); return; }
+      fx.textContent = msg || "";
+      fx.classList.add("on");
+      setTimeout(function () {
+        setModeInstant(m);
+        clearFlow();
+        setTimeout(function () {
+          fx.classList.remove("on");
+          res();
+        }, 500);
+      }, msg ? 1150 : 400);
+    });
+  }
+  var FXMSG = {
+    kabe: "未登録網に接続しています ……",
+    kiko: "機構統合端末に再接続しています ……",
+    plain: ""
+  };
+
+  /* ---------- ノード実行 ---------- */
+  async function runNode(id) {
+    var n = cur.nodes[id];
+    if (!n) { addLineNow("【シナリオエラー: ノード " + id + " が見つかりません】", "sys"); return; }
+    nodeId = id;
+    if (!n.noSave) store.set("ng-pos", JSON.stringify({ s: cur.id, n: id }));
+
+    clearControls();
+    if (n.mode && n.mode !== mode) await transition(n.mode, FXMSG[n.mode]);
+    if (n.clear) clearFlow();
+
+    var fn = types[n.type || "text"];
+    await fn(n);
+  }
+
+  function choiceButtons(list, onPick) {
+    var t0 = performance.now();
+    list.forEach(function (c) {
+      var b = document.createElement("button");
+      b.className = "ch";
+      b.textContent = c.label;
+      b.onclick = function () {
+        if (busy) return;
+        busy = true;
+        clearControls();
+        var ms = performance.now() - t0;
+        onPick(c, ms).then(function () { busy = false; });
+      };
+      controls.appendChild(b);
+    });
+  }
+
+  var types = {
+
+    /* 表紙 */
+    title: async function (n) {
+      var card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML =
+        '<div class="t2">' + esc(n.sub || "") + "</div>" +
+        '<div class="t1">' + esc(n.t) + "</div>" +
+        '<div class="t3">' + esc(n.note || "") + "</div>";
+      flow.appendChild(card);
+      choiceButtons([{ label: n.button || "開く", next: n.next }], async function (c) {
+        await runNode(c.next);
+      });
+    },
+
+    /* 地の文 */
+    text: async function (n) {
+      await playLines(n.lines);
+      if (n.next) { await waitTap(); await runNode(n.next); }
+    },
+
+    /* 選択肢（reply でラリーにも使う） */
+    choice: async function (n) {
+      await playLines(n.lines || []);
+      choiceButtons(n.choices, async function (c, ms) {
+        T.choices.push({ node: nodeId, label: c.label, ms: Math.round(ms) });
+        if (!c.silent) addLineNow(c.label, "me");
+        if (c.reply) { await playLines(c.reply); }
+        await waitTap();
+        await runNode(c.next || n.next);
+      });
+    },
+
+    /* 情動ログ入力 */
+    diary: async function (n) {
+      await playLines(n.lines || []);
+      var t0 = performance.now();
+      var box = document.createElement("div");
+      box.className = "diary";
+      box.innerHTML =
+        '<div class="dlabel">' + esc(n.label || "【本日の情動ログを提出してください】") + "</div>" +
+        '<textarea spellcheck="false"></textarea>' +
+        '<div class="dnote">推奨文が入力されています。このまま提出できます。</div>';
+      var ta = box.querySelector("textarea");
+      ta.value = n.suggest;
+      controls.appendChild(box);
+      var b = document.createElement("button");
+      b.className = "ch";
+      b.textContent = "提出";
+      b.style.marginTop = "9px";
+      controls.appendChild(b);
+      await new Promise(function (res) {
+        b.onclick = function () {
+          var ms = Math.round(performance.now() - t0);
+          var edited = ta.value.trim() !== n.suggest.trim();
+          T.diaries.push({ node: nodeId, edited: edited, ms: ms });
+          clearControls();
+          addLineNow("【" + ta.value.trim() + "】", "me");
+          addLineNow(edited ? "【提出を受理しました】" : "【提出を受理しました（入力時間 " + (ms / 1000).toFixed(1) + " 秒）】", "sys");
+          res();
+        };
+      });
+      await waitTap();
+      await runNode(n.next);
+    },
+
+    /* ログ調査: target の行を開くと先に進める */
+    logview: async function (n) {
+      await playLines(n.lines || []);
+      var opens = 0, found = false;
+      var rowEls = {};
+      n.items.forEach(function (it) {
+        var b = document.createElement("button");
+        b.className = "logrow" + (it.gray ? " gray" : "");
+        rowEls[it.key] = b;
+        b.innerHTML = '<span class="t">' + esc(it.time) + "</span><span>" + esc(it.label) + "</span>";
+        var det = null;
+        b.onclick = function () {
+          if (det) { det.remove(); det = null; b.classList.remove("open"); return; }
+          det = document.createElement("div");
+          det.className = "logdetail";
+          det.textContent = it.d;
+          b.after(det);
+          b.classList.add("open");
+          if (it.key === n.target && !found) {
+            found = true;
+            var go = document.createElement("button");
+            go.className = "ch";
+            go.style.marginTop = "9px";
+            go.textContent = n.goLabel || "この空白を調べる";
+            go.onclick = async function () {
+              clearControls();
+              await runNode(n.next);
+            };
+            controls.appendChild(go);
+          } else if (!found) {
+            opens += 1;
+            if (opens === n.hintAfter) {
+              T.hints += 1;
+              addLineNow(n.hint, "say");
+              if (rowEls[n.target]) rowEls[n.target].classList.add("hint");
+            }
+          }
+        };
+        controls.appendChild(b);
+      });
+    },
+
+    /* 証言比較: 正解を選ぶまで問い直す */
+    testimony: async function (n) {
+      n.quotes.forEach(function (q) {
+        var d = document.createElement("div");
+        d.className = "quote";
+        d.innerHTML = '<div class="who">' + esc(q.who) + "</div>" + esc(q.t);
+        flow.appendChild(d);
+      });
+      scrollDown();
+      await playLines(n.lines || []);
+      var attempts = 0;
+      var ask = function () {
+        choiceButtons(n.choices, async function (c, ms) {
+          T.choices.push({ node: nodeId, label: c.label, ms: Math.round(ms) });
+          addLineNow(c.label, "me");
+          if (c.ok) {
+            await waitTap();
+            await runNode(n.next);
+          } else {
+            attempts += 1;
+            await playLines(c.reply);
+            ask();
+          }
+        });
+      };
+      ask();
+    },
+
+    /* プレイヤー観測記録の開示 */
+    stats: async function (n) {
+      var secs = Math.round((Date.now() - T.start) / 1000);
+      var mm = Math.floor(secs / 60), ss = secs % 60;
+      var cs = T.choices;
+      var avg = cs.length ? cs.reduce(function (a, c) { return a + c.ms; }, 0) / cs.length / 1000 : 0;
+      var fastest = cs.length ? Math.min.apply(null, cs.map(function (c) { return c.ms; })) / 1000 : 0;
+      var edited = T.diaries.filter(function (d) { return d.edited; }).length;
+      var report = [
+        "【例外事案調査報告 ―― 対象: あなた】",
+        "【プレイ時間: " + mm + "分" + ss + "秒】",
+        "【選択回数: " + cs.length + "回 ／ 平均決断時間: " + avg.toFixed(1) + "秒 ／ 最速: " + fastest.toFixed(1) + "秒】",
+        "【情動ログ: " + T.diaries.length + "件提出 ―― うち、手で書き直した夜: " + edited + "件】",
+        "【ヒント使用: " + T.hints + "回】"
+      ];
+      await playLines(report);
+      await waitTap();
+      await playLines(n.lines || []);
+      choiceButtons(n.choices, async function (c, ms) {
+        addLineNow(c.label, "me");
+        if (c.erase) {
+          store.del("ng-pos");
+          store.del("ng-telem");
+          resetTelemetry();
+        }
+        await playLines(c.reply || []);
+        await waitTap();
+        await runNode(c.next || n.next);
+      });
+    },
+
+    /* 終了カード */
+    end: async function (n) {
+      await playLines(n.lines || []);
+      store.del("ng-pos");
+      choiceButtons([{ label: n.button || "書庫に戻る" }], async function () {
+        location.reload();
+      });
+    }
+  };
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  /* ---------- 公開API ---------- */
+  return {
+    register: function (s) { scenarios[s.id] = s; },
+    scenarios: scenarios,
+    savedPos: function () {
+      var v = store.get("ng-pos");
+      if (!v) return null;
+      try { return JSON.parse(v); } catch (e) { return null; }
+    },
+    clearSave: function () { store.del("ng-pos"); },
+    boot: function () {
+      flow = $("flow"); controls = $("controls"); fx = $("fx"); hud = $("hud");
+      flow.addEventListener("click", onTap);
+      document.addEventListener("keydown", function (e) {
+        if (e.key === " " || e.key === "Enter") {
+          if (document.activeElement && document.activeElement.tagName === "TEXTAREA") return;
+          if (document.activeElement && document.activeElement.tagName === "BUTTON") return;
+          onTap();
+        }
+      });
+    },
+    start: function (scenId, fromNode) {
+      cur = scenarios[scenId];
+      resetTelemetry();
+      $("library").hidden = true;
+      $("game").hidden = false;
+      setModeInstant(cur.mode || "kiko");
+      var first = fromNode || cur.start;
+      if (fromNode) addLineNow("―― 記録から再開 ――", "faint");
+      runNode(first);
+    }
+  };
+})();
+
+</script>
+<script>
+/* 『壁打ち――観測社会の密室』 第一部体験版 */
+
+NG.register({
+  id: "kabeuchi",
+  title: "壁打ち",
+  sub: "観測社会の密室",
+  desc: "すべての子どもに「ちょうどいい難易度」の人生が配信される社会で、システムが「良好」と観測していた少年が死んだ。調査するのは、経歴欄が空白の男。所要 30〜45 分。",
+  mode: "kiko",
+  start: "cover",
+  nodes: {
+
+    cover: {
+      type: "title", clear: true,
+      sub: "――観測社会の密室――",
+      t: "壁打ち",
+      note: "第一部「観測の密室」体験版",
+      button: "端末を起動する",
+      next: "boot"
+    },
+
+    boot: {
+      type: "text", clear: true,
+      lines: [
+        "【社会発達支援機構 統合端末OS v12.4】",
+        "【生体認証 …… 照合完了】",
+        "【灰原透 ―― 例外事案調査員】",
+        "【本端末の操作は、すべて記録されます】"
+      ],
+      next: "intro"
+    },
+
+    intro: {
+      type: "text", clear: true,
+      lines: [
+        "僕の職業は、例外事案調査員という。",
+        "この国では、例外はほとんど絶滅している。",
+        "すべての市民の「現在地」は機構が算出し、毎朝、ちょうどいい難易度の課題が配信される。簡単すぎる課題も、難しすぎる課題も、この社会には存在しない。",
+        "不登校は統計上ゼロになった。挫折する子どもがいなくなったからだ。",
+        "機構の予測失敗率は〇・〇〇〇二パーセント。",
+        "つまり僕の仕事は、ほとんど存在しない。",
+        "――そのはずだった。"
+      ],
+      next: "alert"
+    },
+
+    alert: {
+      type: "choice",
+      lines: [
+        "【緊急通知】",
+        "【例外事案発生。旧市街第三区、給水塔。至急臨場されたい】"
+      ],
+      choices: [
+        { label: "現場へ向かう", next: "tower" }
+      ]
+    },
+
+    tower: {
+      type: "text", clear: true,
+      lines: [
+        "旧市街のはずれに、錆びた給水塔が立っている。この街で唯一、機構のカメラが届かない、三十年前の遺構。",
+        "その足元に、少年が落ちていた。",
+        "【汐見航 十六歳】",
+        "【適応値 上位〇・一パーセント ―― 機構の模範事例】",
+        "立入線の前で、監察官の二階堂澪が待っていた。背筋が定規で引いたみたいにまっすぐな人だ。",
+        "「灰原さん。彼の情動ログは、直近九十日、すべて『回復帯・良好』です。昨夜二十二時の定時報告も」",
+        "【今日も目標に向かって成長できた。明日が楽しみ】",
+        "死の、五時間前の報告だった。",
+        "「機構開闢以来、初の完全予測失敗事案です。それで、あなたが呼ばれました」"
+      ],
+      next: "shoken"
+    },
+
+    shoken: {
+      type: "choice",
+      lines: [
+        "シートの下から、細い手首が出ていた。",
+        "「灰原さん。所見を」"
+      ],
+      choices: [
+        {
+          label: "「予兆が一つもない、なんてことがあり得ますか」",
+          reply: [
+            "「あり得ません。機構は市民の絶望を、平均して十一日前に検知します。だからこそ、例外事案なんです」",
+            "僕は頷いて、もう一度、遺体の手元を見た。",
+            "そして、見つけてしまった。"
+          ],
+          next: "mame"
+        },
+        {
+          label: "「自死でしょう。悲しいが、よくあることだ」",
+          reply: [
+            "「よくあること、ではありません」",
+            "二階堂監察官の声が、一度だけ硬くなった。",
+            "「予兆ゼロの死は、この社会に存在しないはずなんです。……それより灰原さん、彼の手を見てください」"
+          ],
+          next: "mame"
+        },
+        {
+          label: "彼の右手を指す。「なんで、マメがあるんですか」",
+          reply: [
+            "二階堂監察官が、僕の指の先を見た。",
+            "「……マメ?」"
+          ],
+          next: "mame"
+        }
+      ]
+    },
+
+    mame: {
+      type: "text",
+      lines: [
+        "少年の手のひらには、硬いマメがあった。皮膚が何度も潰れて、そのたびに固くなった、労働のあとみたいなマメ。",
+        "この社会に、素振りは存在しない。反復練習は非効率としてカリキュラムから消え、ちょうどいい課題だけが配信され、みんながちょうどよく成功する。",
+        "誰の手にも、マメなんてできないはずなのだ。",
+        "「分析室へ。彼の生活ログを開きます」"
+      ],
+      next: "logintro"
+    },
+
+    logintro: {
+      type: "text", clear: true,
+      lines: [
+        "【機構第三支局 分析室】",
+        "「汐見航の、直近一年の標準的な一日です」",
+        "完璧な一日だった。課題があって、達成があって、貢献があって、そのすべてが翌日の最適な負荷の算出に使われて、翌日もまた完璧な一日が来る。",
+        "でも、どこかがおかしい。",
+        "ログを調べて、違和感の正体を見つけてください。"
+      ],
+      next: "logview"
+    },
+
+    logview: {
+      type: "logview",
+      target: "stay",
+      hintAfter: 4,
+      hint: "「……灰原さん。ひとつだけ、色の違う行があります」",
+      goLabel: "この空白を調べる",
+      items: [
+        { key: "wake",  time: "06:30", label: "起床",           d: "睡眠効率96%。乱れなし。" },
+        { key: "task",  time: "07:00", label: "朝の課題配信",   d: "数学発展3問。推定40分を38分で完了。情動推定「快・充実」。" },
+        { key: "class", time: "08:00", label: "配信教室",       d: "発言頻度、クラス平均の1.4倍。うち他の生徒への援助的発言が6割。" },
+        { key: "engawa",time: "15:00", label: "縁側・学習支援", d: "下級生2名の学習支援。貢献度+18。" },
+        { key: "stay",  time: "17:00", label: "───",         d: "記録なし。\n位置情報:旧市街・第三公園（カメラ更新網の対象外区域）。\n移動なし。通信なし。端末操作なし。\n――ただ、そこに、いた。", gray: true },
+        { key: "dinner",time: "19:00", label: "夕食",           d: "会話量、良好。" },
+        { key: "diary", time: "22:00", label: "情動ログ提出",   d: "【今日も目標に向かって成長できた。明日が楽しみ】" }
+      ],
+      next: "park"
+    },
+
+    park: {
+      type: "choice", clear: true,
+      lines: [
+        "【旧市街 第三公園】",
+        "公園というより、公園の化石だった。残っているのは、ひび割れたアスファルトと、古い倉庫の壁だけ。",
+        "その壁の一箇所だけ、色が違う。腰の高さから頭の上まで、何かが何千回もぶつかった痕。",
+        "壁の下には、伸びた草むらがある。"
+      ],
+      choices: [
+        { label: "草むらを探す", next: "ball" }
+      ]
+    },
+
+    ball: {
+      type: "text",
+      lines: [
+        "三分で、それは出てきた。",
+        "古い、硬式の野球ボールだった。革は飴色で、縫い目は毛羽立って、表面には壁の煤が染み込んでいる。",
+        "登録タグは、どこにもない。この世界の物品台帳に存在しないボール。",
+        "「……何のためですか。投球の習熟なら、モーション学習の課題申請をすれば」",
+        "「何のためでもないですよ。壁当てっていうんです。壁にボールを投げると、壁が打ち返してくる。一人でやるキャッチボール」",
+        "「意味がわかりません」",
+        "「でしょうね」",
+        "責めているんじゃない。彼女は生まれた瞬間から、すべての行為に目標と現在地がある世界で育った。何のためでもない反復、というものを見たことがないだけだ。",
+        "誰も見ていない場所で、観測されない努力をしていた少年の手に、マメだけが残った。"
+      ],
+      next: "testintro"
+    },
+
+    testintro: {
+      type: "text", clear: true,
+      lines: [
+        "翌日から、聞き込みを始めた。",
+        "二日かけて、二十六人に会った。",
+        "クラスメイト、縁側の下級生、そして母親。全員、泣いていた。全員、本気だった。",
+        "それなのに、何かがおかしい。三人の証言を並べる。"
+      ],
+      next: "testimony"
+    },
+
+    testimony: {
+      type: "testimony",
+      quotes: [
+        { who: "クラスメイトの少女", t: "「航くんは、いつも目標に向かって努力していて、みんなの手本でした。とても悲しいです。でも、彼の分まで、私も成長していきたいと思います」" },
+        { who: "縁側の下級生", t: "「汐見くんは、目標に向かって毎日成長していて、憧れでした。悲しいですが、彼の分まで頑張ることが、一番の供養だと思います」" },
+        { who: "母親", t: "「航は、目標に向かって歩み続ける子でした。親として誇りです。悲しみは尽きませんが、あの子の分まで、前を向いて生きていきます」" }
+      ],
+      lines: [
+        "二十六人ぶん、これが続いた。違和感の正体は、何だ?"
+      ],
+      choices: [
+        {
+          label: "全員が泣いていた",
+          ok: false,
+          reply: ["「悲しいのだから、泣くのは自然です。違和感とは言えません」", "もう一度、証言を読み比べる。"]
+        },
+        {
+          label: "全員が、同じ構文で話している",
+          ok: true
+        },
+        {
+          label: "全員が彼を褒めている",
+          ok: false,
+          reply: ["「亡くなった方を悪く言う人は稀です。それも自然なことです」", "もう一度、証言を読み比べる。"]
+        }
+      ],
+      next: "syntax"
+    },
+
+    syntax: {
+      type: "text",
+      lines: [
+        "目標に向かって、成長。悲しい、でも。彼の分まで、頑張る。――この三点セットが、二十六回、繰り返されていた。単語まで、ほとんど同じだ。",
+        "二階堂監察官が検索をかけた。証言の構文類似度、平均八十七パーセント。",
+        "「変ではありません。情動ログの標準構文です。私たちは五歳から毎晩、感情を正確に伝わる形にする訓練を受けて育ちます。悲しみを表現する適切な構文があるなら、みんなが使うのは当然です」",
+        "「二階堂さんも、ああ書くんですか」",
+        "「書きます。あれが一番、正確に伝わるからです」",
+        "悲しみに、正確に伝わる形がある。",
+        "その形に流し込まれた悲しみは、まだ悲しみなんだろうか。それとも、悲しみの報告なんだろうか。",
+        "小さな石が靴の中に入ったみたいな違和感だけが、残った。"
+      ],
+      next: "diary1"
+    },
+
+    diary1: {
+      type: "diary", clear: true,
+      lines: [
+        "夜になった。",
+        "機構職員も、市民と同じだ。一日の終わりに、情動ログを提出する。",
+        "【定時報告の時刻です】"
+      ],
+      suggest: "今日も調査を進めることができた。明日も頑張りたい。",
+      next: "memory1"
+    },
+
+    memory1: {
+      type: "text", mode: "plain", clear: true,
+      lines: [
+        "その夜、古い記憶が勝手に再生された。",
+        "十六年前。機構なんて、まだ影も形もない時代。",
+        "十三歳の僕は、宿題が終わらなくて、仮病の電話をかけて学校を休んだ。",
+        "罪悪感で潰れそうになる、はずだった。",
+        "ならなかったのだ。",
+        "窓から午後の光が差していた。世界から音が減って、時間がゆっくりになって、僕は思ってしまった。",
+        "――ずっとこのままが良いな。",
+        "たったそれだけだった。転落は、轟音では来ない。午後の日だまりみたいな顔でやってくる。",
+        "僕はそのまま、四年間、落ち続けた。",
+        "……あの子の完璧ならせん階段に、こんな隙間は、一段でもあっただろうか。"
+      ],
+      next: "device"
+    },
+
+    device: {
+      type: "choice", mode: "kiko", clear: true,
+      lines: [
+        "【鑑識報告】",
+        "【汐見航の自室、通気口の奥より、旧型端末を発見。三十年前の民生品。昨夜まで充電されていた】",
+        "端末の中には、文字だけのチャットルームの残骸があった。装飾もアイコンもない、遺跡みたいな画面。",
+        "部屋の名前だけが、上のほうに小さく出ていた。",
+        "【壁打ち】",
+        "緊急会議で、八重樫局長は言い切った。「模範事例の少年は、観測の外に闇を持っていた。予兆はすべて闇の中にあった。だから機構には見えなかった。観測が、妨害されていたんだ」",
+        "会議室が、うなずきで満ちていく。"
+      ],
+      choices: [
+        {
+          label: "挙手する。「順序が逆かもしれません」",
+          reply: [
+            "「その闇が少年を殺したんじゃなく、その闇が、少年を三年間生かしていた可能性は、検討されましたか」",
+            "会議室が静かになった。",
+            "「灰原くん。君が機構の観測に個人的な感情を持っているのは理解している。だが本件は君の身の上話ではない。証拠を持ってきたまえ」",
+            "やわらかい声で、人を殴れる人だった。"
+          ],
+          next: "home"
+        },
+        {
+          label: "黙って会議を出る",
+          reply: [
+            "反論の材料は、まだ何もなかった。あるのは、マメと、ボールと、靴の中の小石だけだ。",
+            "廊下で二階堂監察官が追いついてきた。「発言なさらないんですね。会議室で一番納得していない顔をしていたのに」",
+            "「顔に出てました?」",
+            "「監察官なので」"
+          ],
+          next: "home"
+        }
+      ]
+    },
+
+    home: {
+      type: "text",
+      lines: [
+        "家に帰ったのは、夜の十一時だった。",
+        "僕の家は、旧市街の外れにある。カメラの少ない区域だからだと、僕は誰にも言わない。",
+        "部屋に入って、鍵をかけて、カーテンを閉めた。",
+        "押し入れの奥から、古い箱を出す。中には、三十年前の民生品の端末。汐見航の部屋にあったものと、同じ規格の機械。",
+        "電源を入れる。"
+      ],
+      next: "kabe_reveal"
+    },
+
+    kabe_reveal: {
+      type: "text", mode: "kabe", clear: true,
+      lines: [
+        "【壁打ち】",
+        "【管理人権限 ―― 認証】",
+        "そう。",
+        "あの少年が出入りしていた場所、機構が闇と呼び、明日から摘発すると決めたこの場所を、九年間、管理してきたのは。",
+        "僕だ。"
+      ],
+      next: "rules"
+    },
+
+    rules: {
+      type: "text",
+      lines: [
+        "壁打ちには、ルールが三つしかない。",
+        "一、名前を持たないこと。誰かの正体を探らないこと。",
+        "二、記録を残さないこと。ここで話したことは、ここに置いていくこと。",
+        "三、球は打ち返すこと。誰かが壁に何かを投げたら、誰でもいいから、打ち返すこと。壁は説教をしない。壁は採点をしない。壁はただ、返す。",
+        "入るのも出るのも自由。会員名簿もない。貢献度もない。誰が誰を支えたか、数える仕組みが何もない。",
+        "機構の世界の完全な裏返しが、ここにある。",
+        "僕がこの場所に迷い込んだのは、十七歳の冬だった。四年落ち続けた、崖の底で。"
+      ],
+      next: "nushi"
+    },
+
+    nushi: {
+      type: "text",
+      lines: [
+        "当時の管理人は「ヌシ」といった。",
+        "自分には特別な才能が隠れている気がする、と書いた僕に、ヌシは恐ろしく速い球を返してきた。",
+        "【才能って言葉はね、まだ何もしてない人間の最後の財布なんだよ】",
+        "【つーか、それより何より、君が学校に行ってないのが一番意味わからない】",
+        "【特別な人間は階段を飛ばすんじゃない。特別な人間ってのは、階段を、一段も飛ばさなかった人間のことだ】",
+        "僕はその球を、三日間、捕れなかった。",
+        "そして大事なのは――もしあの豪速球が、崖の底に落ちた直後の僕に投げられていたら、僕は死んでいたと思う。",
+        "捕れたのは、その前の一年、この部屋で意味のない球を何百回も打ち返してもらっていたからだ。",
+        "回復が先。負荷は後。",
+        "順序が逆なら、同じ球は、ただの投石になる。"
+      ],
+      next: "visitor"
+    },
+
+    visitor: {
+      type: "choice",
+      lines: [
+        "――と、そのとき。",
+        "開いたままの入口を、接続がひとつ通った。ハンドル欄は空欄。",
+        "名無しの誰かが、球をひとつ、投げてきた。",
+        "【眠れない。三日、課題に触ってない。おれの現在地、たぶん崖】",
+        "さて、番人の仕事だ。どう打ち返す?"
+      ],
+      choices: [
+        {
+          label: "【焦らないで。あなたのペースで大丈夫ですよ】",
+          reply: [
+            "【……ありがとうございます。すみません、こんな話して】",
+            "接続が、切れた。",
+            "正しくて、優しい返しだった。教科書のような。",
+            "そして教科書通りの優しさは、ときどき、床にならない。あの人はたぶん、丁寧に打ち返されたのではなく、丁寧に、送り返されたのだ。"
+          ],
+          next: "shio_logs"
+        },
+        {
+          label: "【そうか。今日はそれを言いに来られたか】",
+          reply: [
+            "【……なんですか、その返し】",
+            "【変なの】",
+            "少し間があって、続きが来た。",
+            "【でも、ちょっと楽になりました。また来ます】",
+            "接続が切れた。壁の仕事は、これでいい。"
+          ],
+          next: "shio_logs"
+        },
+        {
+          label: "【三日触ってないのに、ここには来られたんだな。じゃあ現在地はここだ。崖じゃないよ】",
+          reply: [
+            "【…………】",
+            "長い沈黙のあと、一球だけ返ってきた。",
+            "【また来て、いいですか】",
+            "【ここはそういう場所だよ】",
+            "接続が切れた。"
+          ],
+          next: "shio_logs"
+        }
+      ]
+    },
+
+    shio_logs: {
+      type: "text", clear: true,
+      lines: [
+        "夜が明けるまで、僕は消えたはずの古いログを砂の中から拾い続けた。",
+        "汐見航が、この壁の前で、誰として立っていたのかを探すために。",
+        "やがて、ひとつのハンドルが繰り返し現れ始めた。明るくて、よく喋って、誰よりも人の球を打ち返している誰か。",
+        "【シオ:今日も壁当てしてきた。あの壁、ちょっとおれに甘い気がする。真芯で打ち返してこない】",
+        "壁当て。第三公園。手のマメ。",
+        "シオ＝汐見航。確定だった。",
+        "そして、シオの最後の書き込みは、三ヶ月と四日前。",
+        "【なあ、みんな最近どうした? 球が全然返ってこないんだけど】",
+        "【壁、聞こえてるか?】",
+        "【おーい】",
+        "それきり、だった。二百人いた部屋が、この日を境に、停電みたいに沈黙している。"
+      ],
+      next: "crawler"
+    },
+
+    crawler: {
+      type: "text",
+      lines: [
+        "管理人ログを開く。その日のアクセス記録。",
+        "常連たちの接続に混ざって、機械的な規則正しさで全ノードを舐めていった、何かの足跡があった。",
+        "人間の球の投げ方じゃない。",
+        "クローラだ。",
+        "誰かがこの部屋を、外から、隅々まで観測した。",
+        "その日を境に壁打ちは死に、三ヶ月後に、シオが死んだ。"
+      ],
+      next: "hosei"
+    },
+
+    hosei: {
+      type: "text", mode: "kiko", clear: true,
+      lines: [
+        "翌日。二階堂監察官の権限で、機構の決裁記録を照会した。",
+        "【観測補正実施記録 第七四四号】",
+        "【対象: 旧市街系統・非登録通信網（通称不明）】",
+        "【実施内容: 当該コミュニティの支援機能を高く評価し、正規社会資源への移行を実施。参加者の実名登録、支援行為の貢献度記録化、および縁側制度への統合を勧告】",
+        "摘発じゃない。",
+        "機構は壁打ちを、潰していなかった。",
+        "褒めていた。いいものだと認めて、登録して、記録して、数えられるようにして――制度の光の中に、引き上げていた。",
+        "そして、登録された壁は、数週間で死んだ。",
+        "優しさは、採点された瞬間に営業になる。助けられることは、記録された瞬間に負債になる。誰も悪くない。悪意はどこにも、一グラムもない。ただ、数えただけだ。",
+        "「灰原さん……この記録の、最後のページを」"
+      ],
+      next: "diary2"
+    },
+
+    diary2: {
+      type: "diary",
+      lines: [
+        "その夜も、定時報告の時刻が来た。",
+        "【定時報告の時刻です】"
+      ],
+      suggest: "調査は順調に進んでいる。明日も頑張りたい。",
+      next: "reveal"
+    },
+
+    reveal: {
+      type: "text", clear: true,
+      lines: [
+        "決裁記録、最終ページ。実施の発端となった情報源の欄。",
+        "【本件端緒: 外部提案書（受理番号三三一）に基づく】",
+        "【提案書標題: 『シェルター構想――観測に疲れた子どもたちのための、測られない居場所の制度化について』】",
+        "【提案者: 汐見航（十六歳）】",
+        "……",
+        "彼は、自分の居場所を、みんなに配ろうとしたのだ。",
+        "勇気を出して、実名で、正規の窓口に、丁寧な提案書を書いた。",
+        "その申請書が、居場所の座標を教えた。機構は良かれと思って光を当て、光が当たった瞬間、そこは影であることをやめた。",
+        "彼は自分の避難所を、自分の優しさで殺した。",
+        "そして誰にも、それを言えないまま――九十日間、「良好」と報告し続けた。"
+      ],
+      next: "endpart"
+    },
+
+    endpart: {
+      type: "text", mode: "plain", clear: true,
+      lines: [
+        "――第一部「観測の密室」了――",
+        "物語は、第二部「やさしい虐待」、第三部「壁打ち」へ続く。",
+        "……",
+        "ところで。",
+        "最後に、もうひとつだけ、開示しなければならない記録がある。"
+      ],
+      next: "meta"
+    },
+
+    meta: {
+      type: "stats", mode: "kiko", clear: true,
+      lines: [
+        "このゲームは、最初からあなたを観測していました。",
+        "機構が彼にしたのと、同じ静かさで。",
+        "記録はこの端末の中にだけあり、どこにも送信されていません。",
+        "さて――どうしますか。"
+      ],
+      choices: [
+        {
+          label: "記録を消去する",
+          erase: true,
+          reply: [
+            "【消去しました】",
+            "【この端末に、あなたのプレイは存在しません】",
+            "記録がないという形で、残るものもある。"
+          ],
+          next: "fin"
+        },
+        {
+          label: "記録を保存する",
+          reply: [
+            "【保存しました】",
+            "観測される側に立つと、自分で決めたのなら。",
+            "それも、ひとつの答えだ。"
+          ],
+          next: "fin"
+        }
+      ]
+    },
+
+    fin: {
+      type: "end", mode: "plain", clear: true,
+      lines: [
+        "『壁打ち』体験版は、ここまで。",
+        "壁は説教をしない。壁は採点をしない。",
+        "壁はただ、返す。"
+      ],
+      button: "書庫に戻る"
+    }
+  }
+});
+
+</script>
+<script>
+/* 没入書庫 起動処理・書庫画面 */
+
+(function () {
+  "use strict";
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function buildLibrary() {
+    var lib = document.getElementById("library");
+    var saved = NG.savedPos();
+    var html = "<h1>没 入 書 庫</h1>";
+    lib.innerHTML = html;
+
+    Object.keys(NG.scenarios).forEach(function (id) {
+      var s = NG.scenarios[id];
+      var card = document.createElement("div");
+      card.className = "book";
+      card.innerHTML =
+        '<div class="bt">' + esc(s.title) + "</div>" +
+        '<div class="bs">' + esc(s.sub || "") + "</div>" +
+        '<div class="bd">' + esc(s.desc || "") + "</div>" +
+        '<div class="bookbtns"></div>';
+      var btns = card.querySelector(".bookbtns");
+
+      var startBtn = document.createElement("button");
+      startBtn.className = "ch";
+      startBtn.textContent = "はじめから";
+      startBtn.onclick = function (e) {
+        e.stopPropagation();
+        NG.clearSave();
+        NG.start(id);
+      };
+      btns.appendChild(startBtn);
+
+      if (saved && saved.s === id) {
+        var contBtn = document.createElement("button");
+        contBtn.className = "ch";
+        contBtn.textContent = "続きから";
+        contBtn.onclick = function (e) {
+          e.stopPropagation();
+          NG.start(id, saved.n);
+        };
+        btns.appendChild(contBtn);
+      }
+      lib.appendChild(card);
+    });
+
+    var locked = document.createElement("div");
+    locked.className = "book locked";
+    locked.innerHTML =
+      '<div class="bt">――</div>' +
+      '<div class="bs">準備中</div>' +
+      '<div class="bd">次の物語が、ここに並ぶ。</div>';
+    lib.appendChild(locked);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    NG.boot();
+    buildLibrary();
+  });
+})();
+
+</script>
+</body>
+</html>
