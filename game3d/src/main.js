@@ -452,8 +452,14 @@ function fadeIn() { ui.fade.classList.remove("on"); }
 
 /* ================= インタラクト ================= */
 const interactables = [];
-function addInteract(x, z, r, label, fn) {
-  const it = { x, z, r, label, fn, enabled: false };
+const markerGeo = new THREE.OctahedronGeometry(0.16);
+function addInteract(x, z, r, label, fn, opts = {}) {
+  const marker = new THREE.Mesh(markerGeo, new THREE.MeshBasicMaterial({ color: 0xe0b060 }));
+  const my = opts.y !== undefined ? opts.y : 2.0;
+  marker.position.set(x, my, z);
+  marker.visible = false;
+  (opts.group || scene).add(marker);
+  const it = { x, z, r, label, fn, enabled: false, marker, my };
   interactables.push(it); return it;
 }
 let nearest = null;
@@ -484,11 +490,11 @@ function tryInteract() {
 }
 
 /* ================= クエスト進行 ================= */
-const itMio = addInteract(-2.2, -33.5, 2.4, "二階堂澪と話す", onMio);
-const itSheet = addInteract(1.4, -35.4, 2.2, "調べる", onSheet);
-const itWall = addInteract(17.5, -21, 3.4, "壁を調べる", onWall);
-const itBall = addInteract(17.6, -19.2, 1.6, "草むらを探す", onBall);
-const itVoidEnd = addInteract(0, -80, 3.2, "触れる", onVoidEnd);
+const itMio = addInteract(-2.2, -33.5, 2.6, "二階堂澪と話す", onMio, { y: 2.5 });
+const itSheet = addInteract(1.4, -35.4, 3.2, "遺体を調べる", onSheet, { y: 1.3 });
+const itWall = addInteract(17.5, -21, 3.8, "壁を調べる", onWall, { y: 3.0 });
+const itBall = addInteract(17.6, -19.2, 2.4, "草むらを探す", onBall, { y: 1.1 });
+const itVoidEnd = addInteract(0, -80, 3.6, "触れる", onVoidEnd, { y: 3.4, group: voidGroup });
 let towerTriggered = false;
 
 async function questStart() {
@@ -659,6 +665,15 @@ function loop(t) {
   ballRing.rotation.z += dt * 1.2;
   if (ballRing.material.opacity > 0) ballRing.scale.setScalar(1 + Math.sin(t * 0.005) * 0.15);
   mio.position.y = 1.15 + Math.sin(t * 0.0015) * 0.02;
+
+  /* 調査対象マーカー */
+  for (const it of interactables) {
+    it.marker.visible = it.enabled;
+    if (it.enabled) {
+      it.marker.rotation.y += dt * 2.2;
+      it.marker.position.y = it.my + Math.sin(t * 0.004) * 0.12;
+    }
+  }
 
   /* 壁打ち空間: パネルは近づくと浮かび上がる */
   if (P.mode === "void") {
