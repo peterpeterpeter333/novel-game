@@ -56,8 +56,13 @@
     lib.appendChild(locked);
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
+  function init() {
     NG.boot();
     buildLibrary();
-  });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
